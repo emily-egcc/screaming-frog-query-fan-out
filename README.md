@@ -45,24 +45,18 @@ This script analyzes your pages to:
 
 ### 3. Add Your API Key
 
-Replace `YOUR_GEMINI_API_KEY` in the script with your actual API key:
-
-```javascript
-const apiKey = 'YOUR_GEMINI_API_KEY'; // Replace this
-```
+Replace the API key placeholder in the script with your actual API key:
 
 ## 📝 The Script
 
 ```javascript
-// Gemini AI Query Fan-Out Detection for Screaming Frog
-// Version 1.0
-const apiKey = 'YOUR_GEMINI_API_KEY';
+// OpenAI Query Fan-Out Detection for Screaming Frog
+const openaiApiKey = 'sk-proj-xxxx';
+const model = 'gpt-5.6-luna';
 
-// Extract semantic chunks from page (layout-aware chunking)
 function extractSemanticChunks() {
   const chunks = [];
-  
-  // Extract title and main heading
+
   const title = document.title || '';
   const h1 = document.querySelector('h1')?.textContent || '';
   if (title || h1) {
@@ -71,21 +65,20 @@ function extractSemanticChunks() {
       content: `${title} ${h1}`.trim()
     });
   }
-  
-  // Extract headings and their content (layout-aware chunking)
+
   const headings = document.querySelectorAll('h2, h3');
   headings.forEach(heading => {
     let content = heading.textContent;
     let sibling = heading.nextElementSibling;
     let sectionContent = '';
-    
+
     while (sibling && !['H1', 'H2', 'H3'].includes(sibling.tagName)) {
       if (sibling.textContent) {
         sectionContent += ' ' + sibling.textContent;
       }
       sibling = sibling.nextElementSibling;
     }
-    
+
     if (sectionContent.trim()) {
       chunks.push({
         type: 'section',
@@ -94,8 +87,7 @@ function extractSemanticChunks() {
       });
     }
   });
-  
-  // Extract key lists and FAQs
+
   document.querySelectorAll('ul, ol').forEach((list, idx) => {
     if (idx < 5 && list.children.length > 2) {
       chunks.push({
@@ -104,8 +96,7 @@ function extractSemanticChunks() {
       });
     }
   });
-  
-  // Extract schema.org data if present
+
   const schemas = document.querySelectorAll('script[type="application/ld+json"]');
   schemas.forEach(schema => {
     try {
@@ -118,100 +109,80 @@ function extractSemanticChunks() {
       }
     } catch (e) {}
   });
-  
+
   return chunks;
 }
 
 try {
   const url = window.location.href;
   const chunks = extractSemanticChunks();
-  
-  // Create comprehensive prompt for Gemini
-  const prompt = `You are analyzing a webpage for Google's AI Mode query fan-out potential. Google's AI Mode decomposes user queries into multiple sub-queries to synthesize comprehensive answers.
+
+  const prompt = `You are analyzing a webpage for fan-out potential.
 
 URL: ${url}
 
 SEMANTIC CHUNKS FROM PAGE:
 ${JSON.stringify(chunks, null, 2)}
 
-Based on this content, perform the following analysis:
+Perform this analysis:
 
-1. IDENTIFY PRIMARY ENTITY: What is the main ontological entity or topic of this page?
-
-2. PREDICT FAN-OUT QUERIES: Generate 8-10 likely sub-queries that Google's AI might create when a user asks about this topic. Consider:
-   - Related queries (broader context)
-   - Implicit queries (unstated user needs)
-   - Comparative queries (alternatives, comparisons)
-   - Procedural queries (how-to aspects)
-   - Contextual refinements (budget, size, location specifics)
-
-3. SEMANTIC COVERAGE SCORE: For each predicted query, assess if the page content provides information to answer it (Yes/Partial/No).
-
-4. FOLLOW-UP QUESTION POTENTIAL: What follow-up questions would users likely ask after reading this content?
+1. PRIMARY TOPIC: What's the main topic or entity?
+2. FAN-OUT QUERIES: Predict 8–10 follow-up or decomposed queries that ChatGPT might generate to search the web for this related topic.
+3. COVERAGE: For each, say if content on this page answers it (Yes/Partial/No).
+4. FOLLOW-UP QUESTIONS users might ask after reading this page.
 
 OUTPUT FORMAT:
-PRIMARY ENTITY: [entity name]
-
+PRIMARY TOPIC: [entity name]
 FAN-OUT QUERIES:
-• [Query 1] - Coverage: [Yes/Partial/No]
-• [Query 2] - Coverage: [Yes/Partial/No]
-...
+• [Query] - Coverage: Yes/Partial/No
+FOLLOW-UP QUESTIONS:
+• [Q1]
+COVERAGE SCORE: [X/10]`;
 
-FOLLOW-UP POTENTIAL:
-• [Follow-up question 1]
-• [Follow-up question 2]
-...
-
-COVERAGE SCORE: [X/10 queries covered]
-RECOMMENDATIONS: [Specific content gaps to fill]`;
-
-  // Call Gemini API
   const requestData = {
-    contents: [{
-      parts: [{
-        text: prompt
-      }]
-    }],
-    generationConfig: {
-      temperature: 0.3,
-      topK: 20,
-      topP: 0.9,
-      maxOutputTokens: 2048
-    }
+    model: 'gpt-4o',
+    messages: [
+      { role: 'system', content: 'You are an SEO analyst AI focused on fan-out predictions for ChatGPT search.' },
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.3,
+    max_tokens: 2048,
+    top_p: 0.9,
+    frequency_penalty: 0,
+    presence_penalty: 0
   };
 
   const xhr = new XMLHttpRequest();
-  xhr.open('POST', `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, false);
+  xhr.open('POST', 'https://api.openai.com/v1/chat/completions', false);
   xhr.setRequestHeader('Content-Type', 'application/json');
-  
+  xhr.setRequestHeader('Authorization', `Bearer ${openaiApiKey}`);
   xhr.send(JSON.stringify(requestData));
-  
+
   if (xhr.status === 200) {
     const response = JSON.parse(xhr.responseText);
-    
-    if (response.candidates && response.candidates[0] && response.candidates[0].content) {
-      let analysis = response.candidates[0].content.parts[0].text;
-      
-      // Add chunking summary
-      let output = '=== GOOGLE AI MODE QUERY FAN-OUT ANALYSIS ===\n\n';
-      output += analysis;
+    const content = response.choices?.[0]?.message?.content;
+
+    if (content) {
+      let output = '=== OPENAI AI MODE QUERY FAN-OUT ANALYSIS ===\n\n';
+      output += content;
       output += '\n\n=== CONTENT CHUNKING SUMMARY ===\n';
       output += `• Primary Topic Chunks: ${chunks.filter(c => c.type === 'primary_topic').length}\n`;
       output += `• Section Chunks: ${chunks.filter(c => c.type === 'section').length}\n`;
       output += `• List/FAQ Chunks: ${chunks.filter(c => c.type === 'list').length}\n`;
-      output += `• Structured Data: ${chunks.filter(c => c.type === 'structured_data').length > 0 ? 'Yes' : 'No'}\n`;
+      output += `• Structured Data: ${chunks.some(c => c.type === 'structured_data') ? 'Yes' : 'No'}\n`;
       output += `• Total Semantic Chunks: ${chunks.length}`;
 
       return seoSpider.data(output);
     } else {
-      return seoSpider.error('Invalid Gemini response');
+      return seoSpider.error('Invalid OpenAI response.');
     }
   } else {
-    return seoSpider.error(`API Error: ${xhr.status}`);
+    return seoSpider.error(`OpenAI API Error: ${xhr.status}`);
   }
 } catch (error) {
-  return seoSpider.error(`Error: ${error.toString()}`);
+  return seoSpider.error(`Script Error: ${error.toString()}`);
 }
+
 ```
 
 ## 🎯 Usage
@@ -235,7 +206,6 @@ FAN-OUT QUERIES:
 ...
 
 COVERAGE SCORE: 3/10 queries covered
-RECOMMENDATIONS: Add budget guidelines, case studies, measurement frameworks
 ```
 
 ### Interpreting Coverage Scores
@@ -264,28 +234,6 @@ Use fan-out queries to:
 - Create FAQ schemas
 - Build topic clusters
 
-## 🔧 Customization Options
-
-### Use Gemini Pro for Deeper Analysis
-Replace the API endpoint for more detailed results:
-```javascript
-// Change from:
-xhr.open('POST', `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, false);
-
-// To:
-xhr.open('POST', `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`, false);
-```
-
-### Adjust Temperature for Different Results
-- **Lower (0.1-0.3)**: More consistent, predictable queries
-- **Higher (0.5-0.7)**: More creative, diverse queries
-
-### Modify Chunk Extraction
-Add custom selectors for your site structure:
-```javascript
-// Example: Extract FAQ sections
-const faqs = document.querySelectorAll('.faq-item, [itemtype*="FAQPage"]');
-```
 
 ## 🐛 Troubleshooting
 
@@ -303,16 +251,8 @@ const faqs = document.querySelectorAll('.faq-item, [itemtype*="FAQPage"]');
 
 **Timeout Errors**
 - Reduce maxOutputTokens
-- Use gemini-1.5-flash instead of pro
+- Try a different gemini model
 - Check your internet connection
-
-### API Limits
-
-Free tier includes:
-- 60 requests per minute
-- 1,500 requests per day
-- Input: 128k tokens
-- Output: 8k tokens
 
 ## 📈 Performance Tips
 
@@ -337,15 +277,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
+- Created from a fork of metehan777's original Screaming Frog Fan Out Query repo
+	- **Twitter/X**: [@yourhandle](https://twitter.com/metehan777)
 - Inspired by Google's query fan-out patents (US 2024/0289407 A1, WO2024064249A1)
 - Built on insights from the SEO community's AI Mode research
 - Special thanks to early testers and contributors
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/metehan777/screaming-frog-query-fan-out/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/metehan777/screaming-frog-query-fan-out//discussions)
-- **Twitter/X**: [@yourhandle](https://twitter.com/metehan777)
 
 ---
 
