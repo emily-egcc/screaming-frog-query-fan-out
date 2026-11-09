@@ -1,5 +1,6 @@
 // OpenAI Query Fan-Out Detection for Screaming Frog
 const openaiApiKey = 'sk-proj-xxxx';
+const model = 'gpt-5.6-luna';
 
 function extractSemanticChunks() {
   const chunks = [];
@@ -64,7 +65,7 @@ try {
   const url = window.location.href;
   const chunks = extractSemanticChunks();
 
-  const prompt = `You are analyzing a webpage for Google's AI Mode query fan-out potential.
+  const prompt = `You are analyzing a webpage for fan-out potential.
 
 URL: ${url}
 
@@ -74,10 +75,9 @@ ${JSON.stringify(chunks, null, 2)}
 Perform this analysis:
 
 1. PRIMARY TOPIC: What's the main topic or entity?
-2. FAN-OUT QUERIES: Predict 8–10 follow-up or decomposed queries Google AI might generate.
+2. FAN-OUT QUERIES: Predict 8–10 follow-up or decomposed queries that ChatGPT might generate to search the web for this related topic.
 3. COVERAGE: For each, say if content on this page answers it (Yes/Partial/No).
 4. FOLLOW-UP QUESTIONS users might ask after reading this page.
-5. RECOMMENDATIONS to improve semantic coverage.
 
 OUTPUT FORMAT:
 PRIMARY TOPIC: [entity name]
@@ -85,14 +85,12 @@ FAN-OUT QUERIES:
 • [Query] - Coverage: Yes/Partial/No
 FOLLOW-UP QUESTIONS:
 • [Q1]
-RECOMMENDATIONS:
-• [Gap or Improvement Idea]
 COVERAGE SCORE: [X/10]`;
 
   const requestData = {
     model: 'gpt-4o',
     messages: [
-      { role: 'system', content: 'You are an SEO analyst AI focused on AI Mode fan-out predictions for Google Search.' },
+      { role: 'system', content: 'You are an SEO analyst AI focused on fan-out predictions for ChatGPT search.' },
       { role: 'user', content: prompt }
     ],
     temperature: 0.3,
