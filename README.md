@@ -278,7 +278,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Created from a fork of metehan777's original Screaming Frog Fan Out Query repo
-	- **Twitter/X**: [@yourhandle](https://twitter.com/metehan777)
 - Inspired by Google's query fan-out patents (US 2024/0289407 A1, WO2024064249A1)
 - Built on insights from the SEO community's AI Mode research
 - Special thanks to early testers and contributors
