@@ -50,13 +50,15 @@ Replace the API key placeholder in the script with your actual API key:
 ## 📝 The Script
 
 ```javascript
-// OpenAI Query Fan-Out Detection for Screaming Frog
-const openaiApiKey = 'sk-proj-xxxx';
-const model = 'gpt-5.6-luna';
+// Gemini AI Query Fan-Out Detection for Screaming Frog
+// Replace with your actual Gemini API key
+const apiKey = 'xxx-xxx';
 
+// Extract semantic chunks from page (layout-aware chunking)
 function extractSemanticChunks() {
   const chunks = [];
 
+  // Extract title and main heading
   const title = document.title || '';
   const h1 = document.querySelector('h1')?.textContent || '';
   if (title || h1) {
@@ -66,6 +68,7 @@ function extractSemanticChunks() {
     });
   }
 
+  // Extract headings and their content (layout-aware chunking)
   const headings = document.querySelectorAll('h2, h3');
   headings.forEach(heading => {
     let content = heading.textContent;
@@ -88,6 +91,7 @@ function extractSemanticChunks() {
     }
   });
 
+  // Extract key lists and FAQs
   document.querySelectorAll('ul, ol').forEach((list, idx) => {
     if (idx < 5 && list.children.length > 2) {
       chunks.push({
@@ -97,6 +101,7 @@ function extractSemanticChunks() {
     }
   });
 
+  // Extract schema.org data if present
   const schemas = document.querySelectorAll('script[type="application/ld+json"]');
   schemas.forEach(schema => {
     try {
@@ -110,6 +115,18 @@ function extractSemanticChunks() {
     } catch (e) {}
   });
 
+  // === OPTIONAL FULL BODY FALLBACK ===
+  // Uncomment this block if you want to include the raw main body content
+  /*
+  const mainBody = document.querySelector('main, article, .post-content, #content');
+  if (mainBody && mainBody.textContent.trim().length > 300) {
+    chunks.push({
+      type: 'full_body_fallback',
+      content: mainBody.textContent.trim().substring(0, 2000)
+    });
+  }
+  */
+
   return chunks;
 }
 
@@ -117,71 +134,94 @@ try {
   const url = window.location.href;
   const chunks = extractSemanticChunks();
 
-  const prompt = `You are analyzing a webpage for fan-out potential.
+  // Create comprehensive prompt for Gemini
+  const prompt = `You are analyzing a webpage for Google's AI Mode query fan-out potential. Google's AI Mode decomposes user queries into multiple sub-queries to synthesize comprehensive answers.
 
 URL: ${url}
 
 SEMANTIC CHUNKS FROM PAGE:
 ${JSON.stringify(chunks, null, 2)}
 
-Perform this analysis:
+Based on this content, perform the following analysis:
 
-1. PRIMARY TOPIC: What's the main topic or entity?
-2. FAN-OUT QUERIES: Predict 8–10 follow-up or decomposed queries that ChatGPT might generate to search the web for this related topic.
-3. COVERAGE: For each, say if content on this page answers it (Yes/Partial/No).
-4. FOLLOW-UP QUESTIONS users might ask after reading this page.
+1. IDENTIFY PRIMARY TOPIC: What is the main ontological entity or topic of this page?
+
+2. PREDICT FAN-OUT QUERIES: Generate 8–10 likely sub-queries that Google's AI might create when a user asks about this topic. Consider:
+   - Related queries (broader context)
+   - Implicit queries (unstated user needs)
+   - Comparative queries (alternatives, comparisons)
+   - Procedural queries (how-to aspects)
+   - Contextual refinements (budget, size, location specifics)
+   - Potential Google classifications (Google’s best-in-class information systems, and it’s built right into Search. Fresh, real-time sources like the Knowledge Graph, info about the real world, and shopping data for billions of products)
+
+3. SEMANTIC COVERAGE SCORE: For each predicted query, assess if the page content provides information to answer it (Yes/Partial/No).
+
+4. FOLLOW-UP QUESTION POTENTIAL: What follow-up questions would users likely ask after reading this content?
 
 OUTPUT FORMAT:
 PRIMARY TOPIC: [entity name]
-FAN-OUT QUERIES:
-• [Query] - Coverage: Yes/Partial/No
-FOLLOW-UP QUESTIONS:
-• [Q1]
-COVERAGE SCORE: [X/10]`;
 
+FAN-OUT QUERIES:
+• [Query 1] - Coverage: [Yes/Partial/No]
+• [Query 2] - Coverage: [Yes/Partial/No]
+...
+
+FOLLOW-UP POTENTIAL:
+• [Follow-up question 1]
+• [Follow-up question 2]
+...
+
+COVERAGE SCORE: [X/10 queries covered]`;
+
+  // Call Gemini API
   const requestData = {
-    model: 'gpt-4o',
-    messages: [
-      { role: 'system', content: 'You are an SEO analyst AI focused on fan-out predictions for ChatGPT search.' },
-      { role: 'user', content: prompt }
-    ],
-    temperature: 0.3,
-    max_tokens: 2048,
-    top_p: 0.9,
-    frequency_penalty: 0,
-    presence_penalty: 0
+    contents: [{
+      parts: [{
+        text: prompt
+      }]
+    }],
+    generationConfig: {
+      temperature: 0.3,
+      topK: 20,
+      topP: 0.9,
+      maxOutputTokens: 2048
+    }
   };
 
   const xhr = new XMLHttpRequest();
-  xhr.open('POST', 'https://api.openai.com/v1/chat/completions', false);
+  xhr.open('POST', `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`, false);
   xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.setRequestHeader('Authorization', `Bearer ${openaiApiKey}`);
+
   xhr.send(JSON.stringify(requestData));
 
   if (xhr.status === 200) {
     const response = JSON.parse(xhr.responseText);
-    const content = response.choices?.[0]?.message?.content;
 
-    if (content) {
-      let output = '=== OPENAI AI MODE QUERY FAN-OUT ANALYSIS ===\n\n';
-      output += content;
+    if (response.candidates && response.candidates[0] && response.candidates[0].content) {
+      let analysis = response.candidates[0].content.parts[0].text;
+
+      // Add chunking summary
+      let output = '=== GOOGLE AI MODE QUERY FAN-OUT ANALYSIS ===\n\n';
+      output += analysis;
       output += '\n\n=== CONTENT CHUNKING SUMMARY ===\n';
       output += `• Primary Topic Chunks: ${chunks.filter(c => c.type === 'primary_topic').length}\n`;
       output += `• Section Chunks: ${chunks.filter(c => c.type === 'section').length}\n`;
       output += `• List/FAQ Chunks: ${chunks.filter(c => c.type === 'list').length}\n`;
-      output += `• Structured Data: ${chunks.some(c => c.type === 'structured_data') ? 'Yes' : 'No'}\n`;
+      output += `• Structured Data: ${chunks.filter(c => c.type === 'structured_data').length > 0 ? 'Yes' : 'No'}\n`;
+      output += `• Fallback Body Chunk: ${chunks.some(c => c.type === 'full_body_fallback') ? 'Yes' : 'No'}\n`;
       output += `• Total Semantic Chunks: ${chunks.length}`;
 
       return seoSpider.data(output);
     } else {
-      return seoSpider.error('Invalid OpenAI response.');
+      return seoSpider.error('Invalid Gemini response');
     }
   } else {
-    return seoSpider.error(`OpenAI API Error: ${xhr.status}`);
+    return seoSpider.error(`API Error: ${xhr.status}`);
   }
 } catch (error) {
-  return seoSpider.error(`Script Error: ${error.toString()}`);
+  return seoSpider.error(`Error: ${error.toString()}`);
 }
+
 
 ```
 
